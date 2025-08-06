@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Timesheet</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Inter Font -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    
+    <!-- jsPDF and html2canvas CDNs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .timesheet-card {
+            transition: all 0.3s ease;
+        }
+        
+        .timesheet-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .export-btn {
+            transition: all 0.2s ease;
+        }
+        
+        .export-btn:hover {
+            transform: translateY(-1px);
+        }
+        
+        .export-btn:active {
+            transform: translateY(0);
+        }
+        
+        .loading {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 4px solid #3b82f6;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .lunch-break-indicator {
+            display: none;
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+        
+        .lunch-break-indicator.visible {
+            display: block;
+        }
+        
+        .overnight-indicator {
+            display: none;
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+        
+        .overnight-indicator.visible {
+            display: block;
+        }
+        
+        .report-window {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: white;
+            z-index: 10000;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        .report-header {
+            background-color: #1e40af;
+            color: white;
+            padding: 1.5rem;
+            text-align: center;
+            position: relative;
+        }
+        
+        .report-content {
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+        }
+        
+        .report-table th, .report-table td {
+            border: 1px solid #e5e7eb;
+            padding: 0.75rem;
+            text-align: left;
+        }
+        
+        .report-table th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+        }
+        
+        .report-table tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+        
+        .report-footer {
+            text-align: center;
+            padding: 1.5rem;
+            background-color: #f3f4f6;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        .close-report {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background-color: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 0.375rem;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .close-report:hover {
+            background-color: #dc2626;
+        }
+        
+        .report-export-buttons {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .report-export-btn {
+            background-color: #10b981;
+            color: white;
+            border: none;
+            border-radius: 0.375rem;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+        
+        .report-export-btn:hover {
+            background-color: #059669;
+            transform: translateY(-1px);
+        }
+        
+        .report-export-btn:active {
+            transform: translateY(0);
+        }
+        
+        /* Mobile optimizations */
+        @media (max-width: 640px) {
+            .export-btn {
+                font-size: 0.875rem;
+                padding: 0.5rem 0.75rem;
+            }
+            
+            .export-btn i {
+                margin-right: 0.5rem;
+            }
+            
+            .timesheet-card {
+                padding: 1rem;
+            }
+            
+            .report-table {
+                font-size: 0.875rem;
+            }
+            
+            .report-table th, .report-table td {
+                padding: 0.5rem;
+            }
+            
+            .report-export-buttons {
+                flex-direction: column;
+                gap: 0.25rem;
+            }
+            
+            .report-export-btn {
+                font-size: 0.875rem;
+                padding: 0.375rem 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen py-8">
+    <div class="container mx-auto px-4 max-w-4xl">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <div class="flex justify-center mb-4">
+                <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white">
+                    <i class="fas fa-clock text-2xl"></i>
+                </div>
+            </div>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Weekly Timesheet</h1>
+            <p class="text-gray-600">Employee Time Tracking System</p>
+            <p id="dateRange" class="text-gray-500 mt-2">July 28 - August 3, 2025</p>
+            <p class="text-sm text-blue-600 mt-2"><i class="fas fa-info-circle mr-1"></i> 30-minute unpaid lunch deducted for shifts 6+ hours</p>
+        </header>
+        
+        <!-- Export and Reset Buttons -->
+        <div class="flex flex-wrap justify-center gap-4 mb-6">
+            <button id="exportPNG" class="export-btn bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg shadow-md flex items-center">
+                <i class="fas fa-image mr-2"></i> Generate Image (PNG)
+            </button>
+            <button id="exportPDF" class="export-btn bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg shadow-md flex items-center">
+                <i class="fas fa-file-pdf mr-2"></i> Generate PDF
+            </button>
+            <button id="generateReport" class="export-btn bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg shadow-md flex items-center">
+                <i class="fas fa-file-alt mr-2"></i> Generate Report
+            </button>
+            <button id="resetBtn" class="export-btn bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg shadow-md flex items-center">
+                <i class="fas fa-redo mr-2"></i> Reset Form
+            </button>
+        </div>
+        
+        <!-- Main Report Container -->
+        <div id="reportContainer" class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <!-- User Information & Week Selection -->
+            <section class="mb-8">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Employee Information</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="employeeName" class="block text-sm font-medium text-gray-700 mb-1">Employee Name</label>
+                        <input type="text" id="employeeName" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Alex Alexov">
+                    </div>
+                    <div>
+                        <label for="employeeId" class="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
+                        <input type="text" id="employeeId" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="123456">
+                    </div>
+                    <div>
+                        <label for="managerName" class="block text-sm font-medium text-gray-700 mb-1">Manager Name</label>
+                        <input type="text" id="managerName" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Name">
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <label for="weekStartDate" class="block text-sm font-medium text-gray-700 mb-1">Week Start Date</label>
+                    <input type="date" id="weekStartDate" class="w-full md:w-1/3 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </section>
+            
+            <!-- Daily Timesheet Cards (Dynamically Generated) -->
+            <section id="timesheetCards" class="mb-8">
+                <!-- Cards will be generated here by JavaScript -->
+            </section>
+            
+            <!-- Notes Section -->
+            <section class="mb-8">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Weekly Notes</h2>
+                <textarea id="weeklyNotes" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" rows="3" placeholder="Add any notes about the week..."></textarea>
+            </section>
+            
+            <!-- Total Weekly Hours -->
+            <section class="border-t border-gray-200 pt-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Weekly Summary</h2>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <p class="text-sm text-gray-600">Regular Hours</p>
+                        <p id="regularHours" class="text-2xl font-bold text-gray-800">0.00</p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <p class="text-sm text-gray-600">Overtime Hours</p>
+                        <p id="overtimeHours" class="text-2xl font-bold text-gray-800">0.00</p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <p class="text-sm text-gray-600">Total Hours</p>
+                        <p id="totalHours" class="text-2xl font-bold text-gray-800">0.00</p>
+                    </div>
+                    <div class="bg-blue-50 p-4 rounded-lg">
+                        <p class="text-sm text-gray-600">Days Worked</p>
+                        <p id="daysWorked" class="text-2xl font-bold text-blue-600">0</p>
+                    </div>
+                </div>
+                <div class="mt-4 text-sm text-gray-600">
+                    <i class="fas fa-utensils mr-1"></i> Total lunch breaks deducted: <span id="totalLunchBreaks" class="font-semibold">0</span>
+                </div>
+            </section>
+        </div>
+    </div>
+    
+    <!-- Loading Indicator -->
+    <div id="loadingIndicator" class="loading">
+        <div class="text-center">
+            <div class="spinner mx-auto mb-4"></div>
+            <p class="text-gray-700">Generating your document...</p>
+        </div>
+    </div>
+    
+    <!-- Reset Confirmation Modal -->
+    <div id="resetModal" class="modal">
+        <div class="modal-content">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Confirm Reset</h3>
+            <p class="text-gray-600 mb-6">Are you sure you want to reset the form? All entered data will be lost.</p>
+            <div class="flex justify-end gap-3">
+                <button id="cancelReset" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition">Cancel</button>
+                <button id="confirmReset" class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition">Reset</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Report Window -->
+    <div id="reportWindow" class="report-window">
+        <div class="report-header">
+            <div class="report-export-buttons">
+                <button id="exportReportPDF" class="report-export-btn">
+                    <i class="fas fa-file-pdf mr-2"></i> Export PDF
+                </button>
+                <button id="exportReportPNG" class="report-export-btn">
+                    <i class="fas fa-image mr-2"></i> Export PNG
+                </button>
+            </div>
+            <h1 class="text-2xl font-bold">Weekly Timesheet Report</h1>
+            <p>Employee Time Tracking System</p>
+        </div>
+        <div class="report-content" id="reportContent">
+            <!-- Report content will be generated here -->
+        </div>
+        <div class="report-footer">
+            <p class="text-sm text-gray-600">Generated on <span id="reportDate"></span></p>
+        </div>
+        <button class="close-report" onclick="closeReport()">Close Report</button>
+    </div>
+    
+    <script>
+        // Define the days of the week
+        const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        
+        // Define shift options
+        const shiftOptions = [
+            { text: 'Select a Shift...', value: '', start: '', end: '' },
+            { text: 'Morning (06:00 - 14:30)', value: 'morning', start: '06:00', end: '14:30' },
+            { text: 'Mid-Day (10:00 - 18:00)', value: 'midday', start: '10:00', end: '18:00' },
+            { text: 'Evening (14:00 - 22:30)', value: 'evening', start: '14:00', end: '22:30' },
+            { text: 'Swing (14:30 - 23:00)', value: 'swing', start: '14:30', end: '23:00' },
+            { text: 'Overnight (22:00 - 06:30)', value: 'overnight', start: '22:00', end: '06:30' },
+            { text: 'Day Off', value: 'dayoff', start: '', end: '' },
+            { text: 'Custom Time', value: 'custom', start: '', end: '' }
+        ];
+        
+        // Helper function to create a local date from input string
+        function getDateFromInput(dateString) {
+            if (!dateString) return new Date();
+            const [year, month, day] = dateString.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        }
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set the week start date to the most recent Monday
+            setMostRecentMonday();
+            
+            // Generate timesheet cards
+            generateTimesheetCards();
+            
+            // Add event listeners
+            document.getElementById('weekStartDate').addEventListener('change', updateDates);
+            document.getElementById('exportPNG').addEventListener('click', exportAsPNG);
+            document.getElementById('exportPDF').addEventListener('click', exportAsPDF);
+            document.getElementById('generateReport').addEventListener('click', generateDetailedReport);
+            document.getElementById('exportReportPDF').addEventListener('click', exportReportAsPDF);
+            document.getElementById('exportReportPNG').addEventListener('click', exportReportAsPNG);
+            document.getElementById('resetBtn').addEventListener('click', showResetModal);
+            document.getElementById('confirmReset').addEventListener('click', resetForm);
+            document.getElementById('cancelReset').addEventListener('click', hideResetModal);
+            
+            // Optimize mobile viewport handling
+            function handleResize() {
+                if (window.innerWidth < 640) {
+                    document.body.classList.add('mobile');
+                } else {
+                    document.body.classList.remove('mobile');
+                }
+            }
+            
+            // Initial check
+            handleResize();
+            
+            // Listen for resize events
+            window.addEventListener('resize', handleResize);
+        });
+        
+        // Function to set the most recent Monday as the default week start date
+        function setMostRecentMonday() {
+            const today = new Date();
+            const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+            
+            // Calculate the date of the most recent Monday
+            const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+            const monday = new Date(today);
+            monday.setDate(today.getDate() + mondayOffset);
+            
+            // Format the date as YYYY-MM-DD for the input field
+            const formattedDate = formatDateForInput(monday);
+            document.getElementById('weekStartDate').value = formattedDate;
+            
+            // Update the date range display
+            updateDateRange();
+        }
+        
+        // Function to format a date as YYYY-MM-DD for input fields
+        function formatDateForInput(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        
+        // Function to format a date as MM/DD/YYYY for display
+        function formatDateForDisplay(date) {
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${month}/${day}/${year}`;
+        }
+        
+        // Function to update the date range display
+        function updateDateRange() {
+            const weekStartDate = getDateFromInput(document.getElementById('weekStartDate').value);
+            const weekEndDate = new Date(weekStartDate);
+            weekEndDate.setDate(weekStartDate.getDate() + 6);
+            
+            const startMonth = weekStartDate.toLocaleString('default', { month: 'long' });
+            const startDay = weekStartDate.getDate();
+            const endMonth = weekEndDate.toLocaleString('default', { month: 'long' });
+            const endDay = weekEndDate.getDate();
+            const year = weekStartDate.getFullYear();
+            
+            let dateRangeText = '';
+            if (startMonth === endMonth) {
+                dateRangeText = `${startMonth} ${startDay} - ${endDay}, ${year}`;
+            } else {
+                dateRangeText = `${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
+            }
+            
+            document.getElementById('dateRange').textContent = dateRangeText;
+        }
+        
+        // Function to generate timesheet cards for each day of the week
+        function generateTimesheetCards() {
+            const container = document.getElementById('timesheetCards');
+            container.innerHTML = '';
+            
+            const weekStartDate = getDateFromInput(document.getElementById('weekStartDate').value);
+            
+            // Use document fragment for better performance
+            const fragment = document.createDocumentFragment();
+            
+            for (let i = 0; i < daysOfWeek.length; i++) {
+                // Calculate the date for this day
+                const dayDate = new Date(weekStartDate);
+                dayDate.setDate(weekStartDate.getDate() + i);
+                
+                // Create the card
+                const card = document.createElement('div');
+                card.className = 'timesheet-card bg-white border border-gray-200 rounded-lg p-4 mb-4';
+                card.id = `day-${i}`;
+                
+                // Create the card content
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-lg font-semibold text-gray-800">${daysOfWeek[i]}</h3>
+                        <span class="text-gray-600">${formatDateForDisplay(dayDate)}</span>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Shift</label>
+                            <select class="shift-select w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" data-day="${i}">
+                                ${shiftOptions.map(option => 
+                                    `<option value="${option.value}">${option.text}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Time In (24h)</label>
+                            <input type="time" class="time-in w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" data-day="${i}" step="60">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Time Out (24h)</label>
+                            <input type="time" class="time-out w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" data-day="${i}" step="60">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                        <textarea class="day-notes w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" rows="2" placeholder="Add notes for this day..." data-day="${i}"></textarea>
+                    </div>
+                    <div class="mt-3 flex justify-between items-center">
+                        <div>
+                            <p class="text-sm text-gray-600">Daily Total: <span class="daily-hours font-semibold text-gray-800" data-day="${i}">0.00</span> hours</p>
+                            <div class="lunch-break-indicator" data-day="${i}">
+                                <i class="fas fa-utensils mr-1"></i> 30 min lunch deducted
+                            </div>
+                            <div class="overnight-indicator" data-day="${i}">
+                                <i class="fas fa-moon mr-1"></i> Overnight shift
+                            </div>
+                        </div>
+                        <div class="text-sm text-gray-500">
+                            <span class="day-status" data-day="${i}">Not worked</span>
+                        </div>
+                    </div>
+                `;
+                
+                fragment.appendChild(card);
+                
+                // Add event listeners to the shift select and time inputs
+                const shiftSelect = card.querySelector('.shift-select');
+                const timeIn = card.querySelector('.time-in');
+                const timeOut = card.querySelector('.time-out');
+                
+                shiftSelect.addEventListener('change', function() {
+                    handleShiftChange(this, timeIn, timeOut);
+                });
+                
+                timeIn.addEventListener('change', function() {
+                    handleTimeChange(shiftSelect, this, timeOut);
+                });
+                
+                timeOut.addEventListener('change', function() {
+                    handleTimeChange(shiftSelect, timeIn, this);
+                });
+            }
+            
+            container.appendChild(fragment);
+        }
+        
+        // Function to handle shift selection changes
+        function handleShiftChange(shiftSelect, timeIn, timeOut) {
+            const selectedValue = shiftSelect.value;
+            const dayIndex = shiftSelect.dataset.day;
+            
+            if (selectedValue === 'custom') {
+                // Do nothing, let the user input custom times
+                return;
+            }
+            
+            if (selectedValue === 'dayoff') {
+                // Clear time inputs and set hours to 0
+                timeIn.value = '';
+                timeOut.value = '';
+                timeIn.disabled = true;
+                timeOut.disabled = true;
+                
+                // Update the day status
+                document.querySelector(`.day-status[data-day="${dayIndex}"]`).textContent = 'Day Off';
+                
+                // Calculate the hours for this day
+                calculateDailyHours(dayIndex);
+                return;
+            }
+            
+            // Enable time inputs if they were disabled
+            timeIn.disabled = false;
+            timeOut.disabled = false;
+            
+            // Find the selected shift
+            const selectedShift = shiftOptions.find(option => option.value === selectedValue);
+            
+            if (selectedShift && selectedShift.start && selectedShift.end) {
+                // Set the time inputs
+                timeIn.value = selectedShift.start;
+                timeOut.value = selectedShift.end;
+                
+                // Update the day status
+                document.querySelector(`.day-status[data-day="${dayIndex}"]`).textContent = 'Scheduled';
+                
+                // Calculate the hours for this day
+                calculateDailyHours(dayIndex);
+            }
+        }
+        
+        // Function to handle time input changes
+        function handleTimeChange(shiftSelect, timeIn, timeOut) {
+            const dayIndex = shiftSelect.dataset.day;
+            
+            // Change the shift selection to "Custom Time"
+            shiftSelect.value = 'custom';
+            
+            // Enable time inputs if they were disabled
+            timeIn.disabled = false;
+            timeOut.disabled = false;
+            
+            // Update the day status
+            if (timeIn.value && timeOut.value) {
+                document.querySelector(`.day-status[data-day="${dayIndex}"]`).textContent = 'Custom Shift';
+            }
+            
+            // Calculate the hours for this day
+            calculateDailyHours(dayIndex);
+        }
+        
+        // Function to calculate hours for a specific day
+        function calculateDailyHours(dayIndex) {
+            const card = document.getElementById(`day-${dayIndex}`);
+            const timeIn = card.querySelector('.time-in').value;
+            const timeOut = card.querySelector('.time-out').value;
+            
+            if (!timeIn || !timeOut) {
+                card.querySelector('.daily-hours').textContent = '0.00';
+                card.querySelector('.lunch-break-indicator').classList.remove('visible');
+                card.querySelector('.overnight-indicator').classList.remove('visible');
+                calculateWeeklyTotals();
+                return;
+            }
+            
+            // Parse the times
+            const [inHours, inMinutes] = timeIn.split(':').map(Number);
+            const [outHours, outMinutes] = timeOut.split(':').map(Number);
+            
+            // Create date objects for calculation
+            const inDate = new Date(2000, 0, 1, inHours, inMinutes);
+            let outDate = new Date(2000, 0, 1, outHours, outMinutes);
+            
+            // Handle overnight shifts
+            const isOvernight = outDate < inDate;
+            if (isOvernight) {
+                outDate = new Date(2000, 0, 2, outHours, outMinutes);
+                card.querySelector('.overnight-indicator').classList.add('visible');
+            } else {
+                card.querySelector('.overnight-indicator').classList.remove('visible');
+            }
+            
+            // Calculate the difference in milliseconds
+            const diffMs = outDate - inDate;
+            
+            // Convert to hours
+            let diffHours = diffMs / (1000 * 60 * 60);
+            
+            // Apply lunch deduction for shifts 6 hours or longer (but not for overnight shifts)
+            const lunchBreakIndicator = card.querySelector('.lunch-break-indicator');
+            if (diffHours >= 6 && !isOvernight) {
+                diffHours -= 0.5; // Deduct 30 minutes (0.5 hours)
+                lunchBreakIndicator.classList.add('visible');
+            } else {
+                lunchBreakIndicator.classList.remove('visible');
+            }
+            
+            // Update the display
+            card.querySelector('.daily-hours').textContent = diffHours.toFixed(2);
+            
+            // Calculate weekly totals
+            calculateWeeklyTotals();
+        }
+        
+        // Function to calculate weekly totals
+        function calculateWeeklyTotals() {
+            let totalHours = 0;
+            let daysWorked = 0;
+            let lunchBreakCount = 0;
+            
+            // Sum up all daily hours and count days worked
+            document.querySelectorAll('.daily-hours').forEach(element => {
+                const hours = parseFloat(element.textContent) || 0;
+                totalHours += hours;
+                if (hours > 0) {
+                    daysWorked++;
+                }
+            });
+            
+            // Count lunch breaks
+            document.querySelectorAll('.lunch-break-indicator.visible').forEach(() => {
+                lunchBreakCount++;
+            });
+            
+            // Calculate regular and overtime hours
+            const regularHours = Math.min(totalHours, 40);
+            const overtimeHours = Math.max(totalHours - 40, 0);
+            
+            // Update the display
+            document.getElementById('regularHours').textContent = regularHours.toFixed(2);
+            document.getElementById('overtimeHours').textContent = overtimeHours.toFixed(2);
+            document.getElementById('totalHours').textContent = totalHours.toFixed(2);
+            document.getElementById('daysWorked').textContent = daysWorked;
+            document.getElementById('totalLunchBreaks').textContent = lunchBreakCount;
+        }
+        
+        // Function to update all dates when the week start date changes
+        function updateDates() {
+            const weekStartDate = getDateFromInput(document.getElementById('weekStartDate').value);
+            
+            // Update each day's date display
+            for (let i = 0; i < daysOfWeek.length; i++) {
+                const dayDate = new Date(weekStartDate);
+                dayDate.setDate(weekStartDate.getDate() + i);
+                
+                const card = document.getElementById(`day-${i}`);
+                const dateDisplay = card.querySelector('span');
+                dateDisplay.textContent = formatDateForDisplay(dayDate);
+            }
+            
+            // Update the date range display
+            updateDateRange();
+        }
+        
+        // Function to show loading indicator
+        function showLoading() {
+            document.getElementById('loadingIndicator').style.display = 'flex';
+        }
+        
+        // Function to hide loading indicator
+        function hideLoading() {
+            document.getElementById('loadingIndicator').style.display = 'none';
+        }
+        
+        // Function to export as PNG
+        function exportAsPNG() {
+            showLoading();
+            
+            const reportContainer = document.getElementById('reportContainer');
+            
+            html2canvas(reportContainer, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                logging: false,
+                useCORS: true
+            }).then(canvas => {
+                // Create a link element
+                const link = document.createElement('a');
+                
+                // Get the employee name and week start date for the filename
+                const employeeName = document.getElementById('employeeName').value.replace(/\s+/g, '-');
+                const weekStartDate = document.getElementById('weekStartDate').value;
+                
+                // Set the filename
+                link.download = `Timesheet_${employeeName}_${weekStartDate}.png`;
+                
+                // Set the link to the canvas data
+                link.href = canvas.toDataURL('image/png');
+                
+                // Trigger the download
+                link.click();
+                
+                hideLoading();
+            }).catch(error => {
+                console.error('Error generating PNG:', error);
+                hideLoading();
+                alert('Error generating image. Please try again.');
+            });
+        }
+        
+        // Function to export as PDF
+        function exportAsPDF() {
+            showLoading();
+            
+            const reportContainer = document.getElementById('reportContainer');
+            
+            html2canvas(reportContainer, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                logging: false,
+                useCORS: true
+            }).then(canvas => {
+                // Create a new jsPDF instance
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                
+                // Calculate dimensions
+                const imgWidth = 210; // A4 width in mm
+                const pageHeight = 295; // A4 height in mm
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                let heightLeft = imgHeight;
+                let position = 0;
+                
+                // Add the image to the PDF
+                const imgData = canvas.toDataURL('image/png');
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+                
+                // Add additional pages if needed
+                while (heightLeft >= 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                }
+                
+                // Get the employee name and week start date for the filename
+                const employeeName = document.getElementById('employeeName').value.replace(/\s+/g, '-');
+                const weekStartDate = document.getElementById('weekStartDate').value;
+                
+                // Save the PDF
+                pdf.save(`Timesheet_${employeeName}_${weekStartDate}.pdf`);
+                
+                hideLoading();
+            }).catch(error => {
+                console.error('Error generating PDF:', error);
+                hideLoading();
+                alert('Error generating PDF. Please try again.');
+            });
+        }
+        
+        // Function to generate a detailed report
+        function generateDetailedReport() {
+            // Get employee information
+            const employeeName = document.getElementById('employeeName').value;
+            const employeeId = document.getElementById('employeeId').value;
+            const managerName = document.getElementById('managerName').value;
+            const weekStartDate = getDateFromInput(document.getElementById('weekStartDate').value);
+            const weekEndDate = new Date(weekStartDate);
+            weekEndDate.setDate(weekStartDate.getDate() + 6);
+            const weeklyNotes = document.getElementById('weeklyNotes').value;
+            
+            // Get weekly totals
+            const regularHours = document.getElementById('regularHours').textContent;
+            const overtimeHours = document.getElementById('overtimeHours').textContent;
+            const totalHours = document.getElementById('totalHours').textContent;
+            const daysWorked = document.getElementById('daysWorked').textContent;
+            const totalLunchBreaks = document.getElementById('totalLunchBreaks').textContent;
+            
+            // Format date range
+            const startMonth = weekStartDate.toLocaleString('default', { month: 'long' });
+            const startDay = weekStartDate.getDate();
+            const endMonth = weekEndDate.toLocaleString('default', { month: 'long' });
+            const endDay = weekEndDate.getDate();
+            const year = weekStartDate.getFullYear();
+            
+            let dateRangeText = '';
+            if (startMonth === endMonth) {
+                dateRangeText = `${startMonth} ${startDay} - ${endDay}, ${year}`;
+            } else {
+                dateRangeText = `${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
+            }
+            
+            // Generate report HTML
+            let reportHTML = `
+                <div class="mb-8">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">Employee Information</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-600">Employee Name</p>
+                            <p class="font-medium">${employeeName}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600">Employee ID</p>
+                            <p class="font-medium">${employeeId || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600">Manager Name</p>
+                            <p class="font-medium">${managerName || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600">Report Period</p>
+                            <p class="font-medium">${dateRangeText}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-8">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">Daily Time Records</h2>
+                    <div class="overflow-x-auto">
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th>Day</th>
+                                    <th>Date</th>
+                                    <th>Shift</th>
+                                    <th>Time In</th>
+                                    <th>Time Out</th>
+                                    <th>Hours</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            // Add daily records
+            for (let i = 0; i < daysOfWeek.length; i++) {
+                const card = document.getElementById(`day-${i}`);
+                const dateDisplay = card.querySelector('span').textContent;
+                const shiftSelect = card.querySelector('.shift-select');
+                const selectedOption = shiftSelect.options[shiftSelect.selectedIndex];
+                const shiftText = selectedOption.text;
+                const timeIn = card.querySelector('.time-in').value || 'N/A';
+                const timeOut = card.querySelector('.time-out').value || 'N/A';
+                const hours = card.querySelector('.daily-hours').textContent;
+                const notes = card.querySelector('.day-notes').value || 'N/A';
+                
+                reportHTML += `
+                    <tr>
+                        <td>${daysOfWeek[i]}</td>
+                        <td>${dateDisplay}</td>
+                        <td>${shiftText}</td>
+                        <td>${timeIn}</td>
+                        <td>${timeOut}</td>
+                        <td>${hours}</td>
+                        <td>${notes}</td>
+                    </tr>
+                `;
+            }
+            
+            reportHTML += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="mb-8">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">Weekly Summary</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <p class="text-sm text-gray-600">Regular Hours</p>
+                            <p class="text-xl font-bold text-gray-800">${regularHours}</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <p class="text-sm text-gray-600">Overtime Hours</p>
+                            <p class="text-xl font-bold text-gray-800">${overtimeHours}</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <p class="text-sm text-gray-600">Total Hours</p>
+                            <p class="text-xl font-bold text-gray-800">${totalHours}</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <p class="text-sm text-gray-600">Days Worked</p>
+                            <p class="text-xl font-bold text-gray-800">${daysWorked}</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <p class="text-sm text-gray-600">Lunch Breaks Deducted</p>
+                            <p class="text-xl font-bold text-gray-800">${totalLunchBreaks}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add weekly notes if any
+            if (weeklyNotes) {
+                reportHTML += `
+                    <div class="mb-8">
+                        <h2 class="text-xl font-semibold text-gray-800 mb-4">Weekly Notes</h2>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <p class="whitespace-pre-wrap">${weeklyNotes}</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Set report content
+            document.getElementById('reportContent').innerHTML = reportHTML;
+            
+            // Set report date
+            const now = new Date();
+            document.getElementById('reportDate').textContent = now.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            // Show report window
+            document.getElementById('reportWindow').style.display = 'block';
+        }
+        
+        // Function to export report as PNG
+        function exportReportAsPNG() {
+            showLoading();
+            
+            const reportContent = document.getElementById('reportContent');
+            const reportHeader = document.querySelector('.report-header');
+            
+            // Create a temporary container for the full report
+            const tempContainer = document.createElement('div');
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            tempContainer.style.width = '800px';
+            tempContainer.style.backgroundColor = 'white';
+            
+            // Clone the header and content
+            const headerClone = reportHeader.cloneNode(true);
+            // Remove the export buttons from the clone
+            const exportButtons = headerClone.querySelector('.report-export-buttons');
+            if (exportButtons) {
+                exportButtons.remove();
+            }
+            const contentClone = reportContent.cloneNode(true);
+            
+            tempContainer.appendChild(headerClone);
+            tempContainer.appendChild(contentClone);
+            document.body.appendChild(tempContainer);
+            
+            html2canvas(tempContainer, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                logging: false,
+                useCORS: true
+            }).then(canvas => {
+                // Create a link element
+                const link = document.createElement('a');
+                
+                // Get the employee name and week start date for the filename
+                const employeeName = document.getElementById('employeeName').value.replace(/\s+/g, '-');
+                const weekStartDate = document.getElementById('weekStartDate').value;
+                
+                // Set the filename
+                link.download = `Timesheet_Report_${employeeName}_${weekStartDate}.png`;
+                
+                // Set the link to the canvas data
+                link.href = canvas.toDataURL('image/png');
+                
+                // Trigger the download
+                link.click();
+                
+                // Remove the temporary container
+                document.body.removeChild(tempContainer);
+                
+                hideLoading();
+            }).catch(error => {
+                console.error('Error generating PNG:', error);
+                hideLoading();
+                alert('Error generating image. Please try again.');
+            });
+        }
+        
+        // Function to export report as PDF
+        function exportReportAsPDF() {
+            showLoading();
+            
+            const reportContent = document.getElementById('reportContent');
+            const reportHeader = document.querySelector('.report-header');
+            
+            // Create a temporary container for the full report
+            const tempContainer = document.createElement('div');
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            tempContainer.style.width = '800px';
+            tempContainer.style.backgroundColor = 'white';
+            
+            // Clone the header and content
+            const headerClone = reportHeader.cloneNode(true);
+            // Remove the export buttons from the clone
+            const exportButtons = headerClone.querySelector('.report-export-buttons');
+            if (exportButtons) {
+                exportButtons.remove();
+            }
+            const contentClone = reportContent.cloneNode(true);
+            
+            tempContainer.appendChild(headerClone);
+            tempContainer.appendChild(contentClone);
+            document.body.appendChild(tempContainer);
+            
+            html2canvas(tempContainer, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                logging: false,
+                useCORS: true
+            }).then(canvas => {
+                // Create a new jsPDF instance
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                
+                // Calculate dimensions
+                const imgWidth = 210; // A4 width in mm
+                const pageHeight = 295; // A4 height in mm
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                let heightLeft = imgHeight;
+                let position = 0;
+                
+                // Add the image to the PDF
+                const imgData = canvas.toDataURL('image/png');
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+                
+                // Add additional pages if needed
+                while (heightLeft >= 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                }
+                
+                // Get the employee name and week start date for the filename
+                const employeeName = document.getElementById('employeeName').value.replace(/\s+/g, '-');
+                const weekStartDate = document.getElementById('weekStartDate').value;
+                
+                // Save the PDF
+                pdf.save(`Timesheet_Report_${employeeName}_${weekStartDate}.pdf`);
+                
+                // Remove the temporary container
+                document.body.removeChild(tempContainer);
+                
+                hideLoading();
+            }).catch(error => {
+                console.error('Error generating PDF:', error);
+                hideLoading();
+                alert('Error generating PDF. Please try again.');
+            });
+        }
+        
+        // Function to close the report window
+        function closeReport() {
+            document.getElementById('reportWindow').style.display = 'none';
+        }
+        
+        // Function to show reset confirmation modal
+        function showResetModal() {
+            document.getElementById('resetModal').style.display = 'flex';
+        }
+        
+        // Function to hide reset confirmation modal
+        function hideResetModal() {
+            document.getElementById('resetModal').style.display = 'none';
+        }
+        
+        // Function to reset the form
+        function resetForm() {
+            // Reset user information
+            document.getElementById('employeeName').value = 'Alex Alexov';
+            document.getElementById('employeeId').value = '';
+            document.getElementById('managerName').value = '';
+            document.getElementById('weeklyNotes').value = '';
+            
+            // Reset week start date to most recent Monday
+            setMostRecentMonday();
+            
+            // Regenerate timesheet cards
+            generateTimesheetCards();
+            
+            // Calculate weekly totals
+            calculateWeeklyTotals();
+            
+            // Hide the modal
+            hideResetModal();
+        }
+    </script>
+</body>
+</html>
